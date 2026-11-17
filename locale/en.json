@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "DSH Notify",
+    "description": "Native system notification when a turn finishes: get a banner when the agent is done instead of watching the screen"
+  }
+}
