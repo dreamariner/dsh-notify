@@ -2,7 +2,7 @@
 id: 001
 type: feat
 title: 回合结束发本机系统通知
-status: doing
+status: done
 priority: P1
 labels: []
 created: 2026-11-17
@@ -275,3 +275,13 @@ A/B 验证过：用改动前的客户端产物（commit `89b2615`）重载，同
 - 2026-11-17  jianan  顺手修掉一个构建竞态：client 产物内联的 wire 契约是上一轮的旧
   产物（两段 tsdown 并行跑）。拆成 `tsdown.host.config.ts` / `tsdown.client.config.ts`，
   build 脚本按 host → client 顺序跑；清空 lib/ 从零构建验证过
+- 2026-11-17  jianan  全仓审计收尾（四项修复 + 一项定案）：删 `notifyOnLoad` 自检通知
+  （调试用途非产品功能，且装载时订阅者恒为空、载荷永远被丢弃，自检使命完成不了）；
+  notifications 流加 signal 已中止前置检查（已中止的 signal 不触发 abort 监听，订阅者
+  会泄漏在总线里、载荷发进黑洞）；更正 client 弹通知的过时注释（兜底已删，发不出去
+  只记 warn）；`minDurationMs` / `summaryMaxChars` 加 schemastery 范围校验（0 会产出
+  只剩省略号的正文）并补三条单测；typert 协议包 client 内联定案为有意形态并写进
+  AGENTS.md 与 tsdown.shared.ts（查证 DSH 源码：模块表种子 PLATFORM_MODULES 无协议包、
+  协议包无 client 模块行，外置会 miss the module table 静默失效；DSH purity gate 的
+  INLINE_SAFE 明示协议包 inline-safe。脚手架 README「运行期由模块表供给」的说法对
+  0.2.2-rc.2 不成立）。三门禁复跑全绿（test 48 项 / typecheck / build）
