@@ -228,6 +228,24 @@ A/B 验证过：用改动前的客户端产物（commit `89b2615`）重载，同
 窗口标题从「真人版形象设计进展 — DeepSeek Harness」变成「收到 — DeepSeek Harness」，
 即界面确实切到了通知对应的会话。
 
+### web 模式（浏览器跑 DSH）的实测结论（2026-11-17 18:36）
+
+用无头 Chrome 打开宿主地址（`http://127.0.0.1:<port>/?token=…`，即 web app 形态）实测：
+
+- **client 半边照常装载**：web app 的插件表服务做增量 `dsh.client` 扫描（见
+  `packages/extensions/tool-cordis/src/api-catalog.ts` 的 web plugin table service），
+  页面控制台出现「[dsh-notify] 客户端就绪：已接入通知流」。
+- **通知照弹**：授权该站点通知后（`Notification.permission = 'granted'`），页面里确实
+  建出了 Notification 实例（标题「DSH · …」、正文「收到」）。
+- **点横幅照常切回会话**：模拟点击后页面标题从「DeepSeek Harness」变成
+  「请只回复两个字：收到 — DeepSeek Harness」，对话区出现该会话的内容。
+- **差别三处**：① 横幅归属是**浏览器**（Chrome/Safari）而不是 DSH，唤起的是浏览器
+  窗口，web 模式下本就没有 Desktop；② 浏览器默认不给通知权限，不授权就不弹（插件
+  不主动弹权限框）；③ **多个标签页各弹一条**（每个连着宿主的页面都收到同一条载荷）。
+- 顺带修掉一个误报：早先的 client 会在**装载时**查 `uiWorkspace` 并自报「不可用」，
+  web 模式下插件 client 装载得比 ui-workspace 早，那行日志是假的。改成在**点击那一刻**
+  查，并在点击后自报结果（「点横幅 → 已切回会话」/「没有 uiWorkspace 服务」）。
+
 ## 依赖
 
 - 无前置 issue。

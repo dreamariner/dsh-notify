@@ -76,7 +76,6 @@ function postNotification(payload: NotifyPayload, onClick: (sessionId: string) =
       // 再切回这条通知对应的会话。
       try { window.focus() } catch { /* 聚焦失败不影响已弹出的通知 */ }
       if (payload.sessionId !== undefined) {
-        console.info(`[dsh-notify] 点横幅 → 切回会话：${payload.sessionId}`)
         onClick(payload.sessionId)
       } else {
         console.info('[dsh-notify] 点横幅（载荷里没有会话 id，只唤起窗口）')
@@ -101,12 +100,17 @@ export function apply(rawCtx: unknown): void {
     .catch((error: unknown) => { console.error('[dsh-notify] $mount 失败', error) })
 
   // 点横幅后切回触发通知的会话：uiWorkspace 是可选服务，取不到就只唤起窗口。
+  // ⚠ 服务在**点击那一刻**才查（不是装载时）：web 模式下插件 client 装载得比
+  //   ui-workspace 早，装载时查不到不等于点击时也没有。
   const openSession = (sessionId: string): void => {
     const uiWorkspace = ctx.get?.('uiWorkspace') as UiWorkspaceLike | undefined
     const result = jumpToSession(sessionId, uiWorkspace)
-    if (result.outcome === 'opened') return
+    if (result.outcome === 'opened') {
+      console.info(`[dsh-notify] 点横幅 → 已切回会话：${sessionId}`)
+      return
+    }
     if (result.outcome === 'no-service') {
-      console.warn('[dsh-notify] 客户端没有 uiWorkspace 服务，点横幅只能唤起窗口，切不回会话')
+      console.warn('[dsh-notify] 点横幅：客户端没有 uiWorkspace 服务，只唤起窗口，切不回会话')
       return
     }
     if (result.outcome === 'failed') {
@@ -114,10 +118,7 @@ export function apply(rawCtx: unknown): void {
     }
   }
 
-  // 自报切会话能力：出问题时看这一行就知道是「点不到服务」还是「服务报错」。
-  console.info(`[dsh-notify] 客户端就绪：uiWorkspace=${
-    ctx.get?.('uiWorkspace') === undefined ? '不可用（点横幅只唤起窗口）' : '可用（点横幅切回会话）'
-  }`)
+  console.info('[dsh-notify] 客户端就绪：已接入通知流')
 
   ctx.inject?.(['remote.notify'], (scoped: unknown) => {
     void mounted
