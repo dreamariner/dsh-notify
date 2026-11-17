@@ -76,6 +76,22 @@ describe('通知决策', () => {
     expect(decision.title).toBe('DSH · 品牌选型')
   })
 
+  it('决策带上会话 id：客户端点横幅据此切回该会话', () => {
+    const withId = decideNotification(
+      base,
+      { isSubagent: false, id: 'session-42' },
+      { kind: 'completed', durationMs: 1000, lastText: '好了' },
+    )
+    expect(withId.sessionId).toBe('session-42')
+
+    const withoutId = decideNotification(
+      base,
+      { isSubagent: false, id: '' },
+      { kind: 'completed', durationMs: 1000, lastText: '好了' },
+    )
+    expect(withoutId.sessionId).toBeUndefined()
+  })
+
   it('没有助手文本时用结束原因对应的兜底正文', () => {
     const completed = decideNotification(
       base,

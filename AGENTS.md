@@ -4,7 +4,7 @@
 
 ## 项目定位
 
-@dreamariner/dsh-notify：DSH 回合结束系统通知。回合跑完时弹一条系统通知：桌面端的横幅归属是 DSH 本身（点一下唤起 DSH Desktop），客户端接不到时宿主用 osascript 兜底补一条。DeepSeek Harness（DSH）插件，形态：**host + client 双端**。
+@dreamariner/dsh-notify：DSH 回合结束系统通知。回合跑完时弹一条系统通知：桌面端的横幅归属是 DSH 本身（点一下唤起 DSH Desktop 并切回那条通知对应的会话），客户端接不到时宿主用 osascript 兜底补一条。DeepSeek Harness（DSH）插件，形态：**host + client 双端**。
 
 ## 文档机制
 
@@ -28,6 +28,8 @@
 - workspace 布局：根壳承载测试与类型检查，插件包在 `packages/dsh-notify/`；`add` 子命令可继续追加插件，无需迁移结构。
 - 双端：host 半边 `src/index.ts`（订阅会话事件 → 决策 → 推通知载荷）；client 半边 `src/client/index.tsx`（接通知流 → 用系统的 Notification API 弹横幅）。
 - **通知归属与唤起**：归属显示「DeepSeek Harness」、点一下唤起 DSH Desktop，都靠 client 半边在 Electron 渲染进程里发。host 自己用 osascript 发的话归属是「脚本编辑器」，点它唤起的是脚本编辑器。
+- **点横幅切回会话**：载荷带 `sessionId`（`src/contract.ts`），client 半边点横幅时用 `ctx.get('uiWorkspace').openSession(sessionId)` 把会话切过去。`uiWorkspace` 是可选服务（动态插件 ctx 的 `ctx.get` 是免声明的可选查找），取不到就只唤起窗口、不切会话；client 装载时会自报一行「客户端就绪：uiWorkspace=可用/不可用」，排查时先看它。
+- **macOS 通知权限是前提**：系统没给 DeepSeek Harness 通知授权时，通知请求会被 macOS 吞掉（横幅不出现，但插件日志照样记「已通知」；系统日志里能看到 `notificationsAllowed: false`）。要在「系统设置 → 通知 → DeepSeek Harness」里允许通知，插件无权代开。
 - **两路互斥**：client 半边接走载荷就不兜底；没人接（headless、浏览器没给通知权限）时 host 在 `fallbackDelayMs` 后用 osascript 补一条。日志里「客户端已接入通知流」与「宿主兜底已发出」两条能直接分辨走的是哪条。
 - typert face：client → host 的类型化 RPC，方法只声明在 `src/remote.ts`，构建期生成 `lib/typert.host.*`（宿主装配 wire codec）与 `lib/typert.remote-client.*`（client 侧类型化契约）。
 - wire 边界类型必须放在**公开非根类型子路径**（本仓是 `src/contract.ts` 经 `src/types.ts` 发布为 `./types`），否则 typert 生成器直接报「must be exported from a public non-root type subpath」。

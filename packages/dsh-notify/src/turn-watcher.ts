@@ -11,6 +11,8 @@ export interface SessionFacts {
   isSubagent: boolean
   /** 会话标题，没有则 undefined。 */
   title?: string
+  /** 会话 id，客户端点横幅时据此切回该会话。 */
+  id?: string
 }
 
 /** 回合结束事实。 */
@@ -33,6 +35,8 @@ export interface NotifyDecision {
   title?: string
   /** 通知正文（notify 为 true 时有值）。 */
   body?: string
+  /** 触发通知的会话 id（notify 为 true 且会话 id 已知时有值）。 */
+  sessionId?: string
 }
 
 /** 结束原因对应的兜底正文（没有助手摘要时用）。 */
@@ -70,5 +74,6 @@ export function decideNotification(
   const title = session.title !== undefined && session.title !== ''
     ? `${config.title} · ${session.title}`
     : config.title
-  return { notify: true, reason: 'notify', title, body }
+  const sessionId = session.id !== undefined && session.id !== '' ? session.id : undefined
+  return { notify: true, reason: 'notify', title, body, sessionId }
 }

@@ -11,9 +11,10 @@
 //   · 决策逻辑全在 turn-watcher.ts（纯函数），本文件只做宿主接线。
 //
 // 通知往哪走：宿主判定之后把载荷推给客户端（桌面端 / 浏览器），由客户端用系统的
-// Notification API 弹横幅 —— 桌面端这样发出来的横幅归属是 DSH 本身，点一下会
-// 唤起 DSH Desktop。客户端接不到时，宿主在 fallbackDelayMs 之后用自己的
-// osascript 通道补一条（归属是「脚本编辑器」）。
+// Notification API 弹横幅。桌面端这样发出来的横幅归属是 DSH 本身，点一下会唤起
+// DSH Desktop；载荷里带会话 id，客户端收到点击后切回那个会话。客户端接不到时，
+// 宿主在 fallbackDelayMs 之后用自己的 osascript 通道补一条（归属是「脚本编辑器」，
+// 点它只会打开脚本编辑器，切不回会话）。
 //
 // ⚠ inject 是白名单：只声明的 service 才会出现在 ctx 上。'sessions' 保证本插件
 //   在会话存储就绪后才激活，不会漏掉启动初期的回合事件。
@@ -151,7 +152,7 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
           const kind = reasonKind(event.data)
           const endedAt = typeof event.time === 'number' ? event.time : Date.now()
           const durationMs = state.startedAt !== undefined ? Math.max(0, endedAt - state.startedAt) : 0
-          const facts: SessionFacts = { isSubagent: isSubagent(session), title: state.title }
+          const facts: SessionFacts = { isSubagent: isSubagent(session), title: state.title, id }
           const decision = decideNotification(config, facts, { kind, durationMs, lastText: state.lastText })
           if (!decision.notify) {
             log(`不通知（${decision.reason}）：kind=${kind} 用时=${durationMs}ms`)
@@ -161,9 +162,11 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
             title: decision.title ?? config.title,
             body: decision.body ?? '',
             kind,
+            // 客户端点横幅时据此切回该会话
+            sessionId: decision.sessionId ?? id,
           }
           publishNotification(payload, (fallbackPayload) => { void fallback(fallbackPayload) }, config.fallbackDelayMs)
-          log(`已通知：kind=${kind} 用时=${durationMs}ms 正文="${payload.body}"`)
+          log(`已通知：kind=${kind} 用时=${durationMs}ms 会话=${id} 正文="${payload.body}"`)
           break
         }
 

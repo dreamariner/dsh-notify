@@ -99,6 +99,35 @@ client 用系统的 Notification API 弹。typert 的方向是 client → host �
 `inject: ['sessions']`：官方会话类插件的同一写法（`packages/session/session-title/src/index.ts:302`），
 保证插件在会话存储就绪后才激活，不漏启动初期的回合事件。
 
+### 点横幅切回会话（后补的要求）
+
+要求追加到「点一下要唤起 DSH Desktop」之后：**点横幅还要切到这条通知对应的会话**。
+
+- 载荷加 `sessionId`（`src/contract.ts`）：host 在 `turn/end` 时把会话 id 放进载荷，
+  typert 的 wire 契约随之带上（生成产物里 `sessionId` 是可选字段）。
+- client 半边点横幅时调 `ctx.get('uiWorkspace').openSession(sessionId)`：DSH 客户端的
+  `uiWorkspace` 服务负责「选中该会话并在会话区显示它」
+  （`packages/client/ui-workspace/src/client/navigation.ts:293`）。
+- `uiWorkspace` 按**可选服务**取（动态插件 ctx 的 `ctx.get` 是免声明的可选查找，见
+  `packages/extensions/cordis-client-runner/src/client/guard.ts:220`），取不到就只唤起
+  窗口、不切会话，不让整条通知链断掉。client 装载时自报一行「客户端就绪：
+  uiWorkspace=可用/不可用」，排查时先看它。
+- 切会话的判断抽成纯函数 `src/client/session-jump.ts`（有会话 id 与服务才切；失败
+  如实报 failed，不吞异常），五种结果各有单测。
+
+## 前提：macOS 通知权限
+
+横幅显不显示由 macOS 决定。实测（本机 macOS 26 / 27，DeepSeek Harness 0.2.2-rc.2）：
+
+- 插件日志记「已通知」、客户端也把通知交给了系统（`usernoted` 与 `NotificationCenter`
+  的系统日志里能看到 `com.deepseek.dsh` 的通知记录），但横幅不出现；
+- 系统日志里该应用的通知被拒：`notificationsAllowed: false`、`authorizationStatus: Denied`，
+  且通知中心偏好（`com.apple.ncprefs`）里没有该应用的登记；
+- 结论：macOS 未给 DeepSeek Harness 通知授权，通知请求被系统吞掉。插件无权代开，
+  也不该代改系统设置，要用户在「系统设置 → 通知 → DeepSeek Harness」里放行。
+
+同一个原因也会让 DSH 自带的更新提醒（`apps/desktop/src/update-attention.ts:43`）不显示。
+
 ## 影响面
 
 - 不注册 Agent tool：通知是宿主行为，不是模型能力。
@@ -110,7 +139,8 @@ client 用系统的 Notification API 弹。typert 的方向是 client → host �
 - [x] 四道闸的决策逻辑有单测覆盖（每个闸各一条用例）
 - [x] 通知总线的两条路径有单测覆盖（客户端接走 / 超时兜底 / 客户端中途连上）
 - [x] AppleScript 转义与命令构造有单测覆盖
-- [x] 三门禁全绿：`pnpm test`（45 项）/ `pnpm typecheck` / `pnpm build`
+- [x] 点横幅切会话的判断有单测覆盖（有会话有服务 / 无会话 / 无服务 / 服务报错）
+- [x] 三门禁全绿：`pnpm test`（51 项）/ `pnpm typecheck` / `pnpm build`
 - [x] 装进 desktop profile 并重启实例，`pnpm dsh:probe` 显示本插件 active
 - [x] 真机验证主回合：跑一轮真实对话，日志记 `已通知：kind=completed 用时=5616ms 正文="收到"`，
   正文取到的正是助手那条回复
@@ -119,8 +149,11 @@ client 用系统的 Notification API 弹。typert 的方向是 client → host �
 - [x] 真机验证客户端接入：日志出现「客户端已接入通知流」，且**没有**「宿主兜底已发出」
   → 横幅是客户端弹的，归属是 DSH 本身
 - [x] 实机验证 `abort` 的回合不弹通知（默认 notifyKinds 不含 aborted）
+- [x] 真机验证点横幅切会话：模拟点击后窗口标题从当前会话（「真人版形象设计进展」）
+  切到通知对应的会话（「收到」），客户端控制台记「点横幅 → 切回会话：session-9b7a4c37…」
 - [ ] 人眼确认横幅归属显示「DeepSeek Harness」，且点一下能把 DSH Desktop 唤到前台
-      （系统层只能由人确认；脚本只能确认「客户端接走了载荷」）
+      （系统层只能由人确认；脚本只能确认「客户端接走了载荷」「点击后切了会话」）
+      ⚠ 前提：先在「系统设置 → 通知 → DeepSeek Harness」里放行通知
 
 ## 实测记录
 
@@ -146,6 +179,33 @@ client 用系统的 Notification API 弹。typert 的方向是 client → host �
 
 客户端在插件装载后约 1.5 秒接入；之后发的通知一律走客户端，没有兜底记录。
 
+### 「通知没出现」的排查（2026-11-17 17:00 前后）
+
+系统日志里能看到 DSH 自己发的通知请求（`n#dsh-app://app#…` 是渲染进程的 web 通知
+请求号），但横幅不出现：
+
+```
+16:49:02 Electron[12805] [com.apple.UserNotifications:Connections] [com.deepseek.dsh] Adding notification request 4FB7-DE25
+16:49:02 NotificationCenter[1159] [com.apple.unc:dnd] Should not play sound for com.deepseek.dsh:
+         playSounds: true, hasAuthorizations: true, notificationsAllowed: false, darkWake: false
+```
+
+`notificationsAllowed: false` 与偏好里没有该应用登记，指向 macOS 未授权该应用发通知。
+专注模式当时是关的（`donotdisturbd` 记 `outcome: allowed; reason: disabled`），排除。
+
+### 点横幅切会话的真机验证（2026-11-17 17:04）
+
+在渲染进程里劫持 `window.Notification` 留住通知实例，触发一轮真实对话后调用实例的
+`onclick`（等价于点横幅）：
+
+```
+[dsh-notify] 已弹系统通知：DSH · 收到 · 会话=session-9b7a4c37-146b-4a99-9312-fade43d8faf5
+[dsh-notify] 点横幅 → 切回会话：session-9b7a4c37-146b-4a99-9312-fade43d8faf5
+```
+
+窗口标题从「真人版形象设计进展 — DeepSeek Harness」变成「收到 — DeepSeek Harness」，
+即界面确实切到了通知对应的会话。
+
 ## 依赖
 
 - 无前置 issue。
@@ -160,3 +220,8 @@ client 用系统的 Notification API 弹。typert 的方向是 client → host �
 - 2026-11-17  jianan  按「归属是 DSH、点击唤起 DSH Desktop」的要求改为 full 形态：
   client 半边在渲染进程里弹通知（归属 DSH 本身），host 保留 osascript 兜底；
   真机确认客户端已接入通知流且未触发兜底
+- 2026-11-17  jianan  定位「横幅不出现」的根因：macOS 未给 DeepSeek Harness 通知授权，
+  系统把通知吞了（插件侧一切正常）；写进 README 与本 issue，插件不代改系统设置
+- 2026-11-17  jianan  加「点横幅切回该会话」：载荷带 sessionId，client 用
+  `uiWorkspace.openSession` 切会话；纯逻辑抽成 session-jump.ts 并补 5 条单测，
+  真机模拟点击后窗口标题切到通知对应的会话

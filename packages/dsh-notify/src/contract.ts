@@ -14,6 +14,11 @@ export interface NotifyPayload {
   body: string
   /** 回合结束原因（completed / error / …），客户端可据此分类。 */
   kind: string
+  /**
+   * 触发这条通知的会话 id。
+   * 客户端点横幅时用它切回该会话（DSH 客户端的 uiWorkspace.openSession）。
+   */
+  sessionId?: string
 }
 
 /** 客户端发不了系统通知时，转交宿主兜底通道的参数。 */
