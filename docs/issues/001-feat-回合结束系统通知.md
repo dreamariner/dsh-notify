@@ -128,6 +128,22 @@ client 用系统的 Notification API 弹。typert 的方向是 client → host �
 
 同一个原因也会让 DSH 自带的更新提醒（`apps/desktop/src/update-attention.ts:43`）不显示。
 
+## 已知告警（无害）
+
+web boot 时控制台会出现一条：
+
+```
+web boot: warning: 1 entry did not activate
+@dreamariner/dsh-notify: import failed (see console for the import error)
+```
+
+这是宿主启动时的存活检查与动态 client 插件的异步装载之间的时序差：检查时本插件的
+fiber 还没落地，于是记一条「import failed」，几十毫秒后插件照常激活（控制台随后会
+出现「客户端就绪」，宿主日志里出现「客户端已接入通知流」）。
+
+A/B 验证过：用改动前的客户端产物（commit `89b2615`）重载，同样出现这条警告，说明
+与本次改动无关。插件侧无法消除（警告由宿主的启动检查产生）。
+
 ## 影响面
 
 - 不注册 Agent tool：通知是宿主行为，不是模型能力。

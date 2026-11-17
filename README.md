@@ -108,6 +108,10 @@ DSH Desktop 并切回对应的会话。客户端接不到时（没有客户端�
   滤掉）。
 - **Windows 没有内置通道**：客户端那半边依赖浏览器的 Notification API，宿主兜底
   只实现了 macOS。
+- **启动时有一条无害告警**：web boot 控制台会出现 `web boot: warning: 1 entry did not
+  activate @dreamariner/dsh-notify: import failed`，几十毫秒后插件照常激活
+  （控制台随后有「客户端就绪」，宿主日志有「客户端已接入通知流」）。这是宿主启动检查
+  与动态 client 插件异步装载的时序差，与本插件无关。
 
 ## 开发
 
