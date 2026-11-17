@@ -29,6 +29,7 @@
     "dsh:stop": "node scripts/dsh-ctl.mjs stop",
     "dsh:status": "node scripts/dsh-ctl.mjs status",
     "dsh:probe": "node scripts/dsh-ctl.mjs probe",
+    "verify:notify": "node scripts/verify-notify.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json"

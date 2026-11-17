@@ -15,6 +15,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { Config, KNOWN_KEYS, resolveConfig, type NotifyConfig } from './config.ts'
+import { createLogger } from './logger.ts'
 import { createNotifier, type NotifyPayload } from './notify.ts'
 import { decideNotification, type SessionFacts } from './turn-watcher.ts'
 
@@ -89,8 +90,7 @@ function reasonKind(data: Record<string, unknown> | undefined): string {
 export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): void {
   // patch 里没有 config 时 YAML 会解析出 null，默认参数只对 undefined 生效，故显式兜底
   const config = resolveConfig(Config, rawConfig ?? {}, name)
-  const log = (...args: unknown[]): void => { ctx.logger?.info?.(`[${name}]`, ...args) }
-  const warn = (...args: unknown[]): void => { ctx.logger?.warn?.(`[${name}]`, ...args) }
+  const { info: log, warn } = createLogger(name, ctx)
 
   if (!config.enabled) {
     log('通知已关闭（config.enabled = false），插件已装载但不发任何通知')

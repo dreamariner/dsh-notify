@@ -119,6 +119,26 @@ pnpm dsh:stop
 pnpm dsh:probe     # 连实例验证本插件装载且 active
 ```
 
+真机验收（会真的发一条提示词到实例，跑一轮真实对话）：
+
+```sh
+pnpm verify:notify                              # 发默认提示词
+pnpm verify:notify "你的提示词"                  # 自定义
+```
+
+脚本跑完会打印插件日志里的通知记录，例如
+`已通知：kind=completed 用时=5717ms 正文="收到"`。横幅只有人眼能确认，看一眼屏幕
+才算验收通过。
+
+## 日志
+
+插件日志双写：console（进实例日志）与文件 `$DSH_HOME/logs/dsh-notify.log`（桌面端
+宿主 logger 不可见，文件这份才看得到）。每次不通知也会记原因码：
+
+```
+2026-11-17T04:59:52.003Z [info] 不通知（subagent）：kind=completed 用时=1200ms
+```
+
 ## 结构
 
 ```
