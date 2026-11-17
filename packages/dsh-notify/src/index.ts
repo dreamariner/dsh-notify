@@ -12,9 +12,8 @@
 //
 // 通知往哪走：宿主判定之后把载荷推给客户端（桌面端 / 浏览器），由客户端用系统的
 // Notification API 弹横幅。桌面端这样发出来的横幅归属是 DSH 本身，点一下会唤起
-// DSH Desktop；载荷里带会话 id，客户端收到点击后切回那个会话。客户端接不到时，
-// 宿主在 fallbackDelayMs 之后用自己的 osascript 通道补一条（归属是「脚本编辑器」，
-// 点它只会打开脚本编辑器，切不回会话）。
+// DSH Desktop；载荷里带会话 id，客户端收到点击后切回那个会话。
+// 没有客户端接入时通知直接丢弃（不做宿主侧兜底通道）。
 //
 // ⚠ inject 是白名单：只声明的 service 才会出现在 ctx 上。'sessions' 保证本插件
 //   在会话存储就绪后才激活，不会漏掉启动初期的回合事件。
@@ -23,7 +22,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Config, KNOWN_KEYS, resolveConfig, type NotifyConfig } from './config.ts'
 import { createLogger } from './logger.ts'
 import { publishNotification } from './notify-bus.ts'
-import { sendDarwinNotification, type NotifyPayload } from './notify.ts'
+import type { NotifyPayload } from './contract.ts'
 import { NotifyRemote } from './remote.ts'
 import { setRuntime } from './runtime.ts'
 import { decideNotification, type SessionFacts } from './turn-watcher.ts'
@@ -103,21 +102,7 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
   const config = resolveConfig(Config, rawConfig ?? {}, name)
   const { info: log, warn } = createLogger(name, ctx)
 
-  // 宿主兜底通道：客户端接不到时自己发（macOS 的 osascript）。
-  const fallback = async (payload: NotifyPayload): Promise<void> => {
-    if (config.fallback === 'none') {
-      log('无人接收通知且兜底已关，丢弃')
-      return
-    }
-    if (process.platform !== 'darwin') {
-      warn('兜底通道只实现了 macOS，当前平台不发：', process.platform)
-      return
-    }
-    await sendDarwinNotification(payload, config.soundName)
-    log(`客户端未接，宿主兜底已发出（归属是「脚本编辑器」）：${payload.title} · ${payload.body}`)
-  }
-
-  setRuntime({ config, log: { info: log, warn }, fallback })
+  setRuntime({ config, log: { info: log, warn } })
 
   if (!config.enabled) {
     log('通知已关闭（config.enabled = false），插件已装载但不发任何通知')
@@ -165,8 +150,11 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
             // 客户端点横幅时据此切回该会话
             sessionId: decision.sessionId ?? id,
           }
-          publishNotification(payload, (fallbackPayload) => { void fallback(fallbackPayload) }, config.fallbackDelayMs)
-          log(`已通知：kind=${kind} 用时=${durationMs}ms 会话=${id} 正文="${payload.body}"`)
+          if (publishNotification(payload)) {
+            log(`已通知：kind=${kind} 用时=${durationMs}ms 会话=${id} 正文="${payload.body}"`)
+          } else {
+            log(`无人接收通知（没有客户端接入通知流），已丢弃：kind=${kind} 会话=${id} 正文="${payload.body}"`)
+          }
           break
         }
 
@@ -187,11 +175,11 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
   })
 
   if (config.notifyOnLoad) {
-    publishNotification(
-      { title: config.title, body: '通知插件已装载，接下来每轮跑完都会提醒你', kind: 'load' },
-      (fallbackPayload) => { void fallback(fallbackPayload) },
-      config.fallbackDelayMs,
-    )
+    publishNotification({
+      title: config.title,
+      body: '通知插件已装载，接下来每轮跑完都会提醒你',
+      kind: 'load',
+    })
   }
 
   log(`已装载：监听回合结束事件，通知原因码 ${config.notifyKinds.join(' / ')}`)

@@ -11,8 +11,8 @@
 // 切会话：载荷里带会话 id，点击时用客户端的 uiWorkspace.openSession 切过去
 // （uiWorkspace 是可选服务：取不到就只唤起窗口，不切会话）。
 //
-// 浏览器里发不出去时（通知权限没给 / 被拒），请宿主用 osascript 兜底补一条，
-// 至少别让人漏掉「活干完了」。
+// 浏览器里发不出去时（通知权限没给 / 被拒）就没有提醒了：本插件只有这一条路，
+// 不做宿主侧兜底通道。
 //
 // 官方形态（DSH skill cordis-plugin-development 的 templates/decoration/client.js）：
 //   · 产物 lib/client.js 被 tsdown.config.ts 包上 window.__ModuleLoader__.load({...})
@@ -40,10 +40,6 @@ interface NotifyPayload {
 /** 客户端侧用到的 Remote 命名空间形状。 */
 interface NotifyNamespace {
   notifications: (signal?: AbortSignal) => AsyncIterable<NotifyPayload> & { dispose: () => void }
-  fallback: (
-    args: NotifyPayload,
-    signal?: AbortSignal,
-  ) => Promise<{ readonly ok: true; readonly value: { readonly posted: boolean } } | { readonly ok: false; readonly error: unknown }>
 }
 
 /** 客户端 ctx 的最小形状。 */
@@ -137,13 +133,8 @@ export function apply(rawCtx: unknown): void {
         for await (const payload of handle) {
           const posted = postNotification(payload, openSession)
           if (!posted) {
-            // 客户端发不出去：请宿主用 osascript 兜底补一条。
-            const result = await namespace.fallback({
-              title: payload.title,
-              body: payload.body,
-              kind: payload.kind,
-            })
-            if (!result.ok) console.error('[dsh-notify] 兜底通知调用失败', result.error)
+            // 没有第二路可走：通知权限没给或被拒时，这次就没有提醒。
+            console.warn('[dsh-notify] 系统通知发不出去（通知权限未给或被拒），本次不提醒')
           } else {
             console.info(`[dsh-notify] 已弹系统通知：${payload.title} · 会话=${payload.sessionId ?? '无'}`)
           }

@@ -82,15 +82,16 @@ client 用系统的 Notification API 弹。typert 的方向是 client → host �
 
 ### 通知通道（full 形态：host 判定 + client 弹）
 
-- **主路（客户端）**：host 把载荷推给 client 半边（typert 流方法），client 用
+- **只有一条路（客户端）**：host 把载荷推给 client 半边（typert 流方法），client 用
   `new Notification(title, { body })` 弹。桌面端归属是 DSH 本身，点一下唤起
-  DSH Desktop。普通浏览器里权限默认不给（不主动弹权限框打断正事），这时请 host
-  走兜底通道（`notify/fallback`）。
-- **兜底（宿主）**：没人接时，host 在 `fallbackDelayMs`（默认 8 秒）后用 osascript 的
-  `display notification` 补一条，归属是「脚本编辑器」。两路互斥：client 接走就不兜底。
-- 命令一律 `node:child_process` 的 `execFile` argv 形态（不经 shell，不引宿主包）：
-  正文里的引号、换行、分号都只是参数，不会变成命令注入。AppleScript 字面量要转义
-  反斜杠与双引号，换行折成空格。
+  DSH Desktop。普通浏览器里权限默认不给（不主动弹权限框打断正事），这种环境下就没有
+  通知。
+- **不做兜底通道**（2026-11-17 定：主路行就行，不行就不行）：没有客户端接入通知流时
+  通知直接丢弃，宿主日志记「无人接收通知（没有客户端接入通知流），已丢弃」。理由是
+  兜底那条的归属只能是别的应用（macOS 的 osascript 归属「脚本编辑器」，点它唤起的是
+  脚本编辑器），与其弹一条归属不对的，不如不弹。
+  → wire 契约里的兜底端点（`notify/fallback`）、`src/notify.ts`（osascript 命令构造与
+  发送）、配置项 `fallback` / `fallbackDelayMs` / `soundName` / `appName` 全部删除。
 - host 侧不引 `@deepseek-ai/dsh-native-command`：插件不依赖运行期 node_modules
   布局，profile 里 `link:` 装法不会解析不到。
 
@@ -153,17 +154,16 @@ A/B 验证过：用改动前的客户端产物（commit `89b2615`）重载，同
 ## 验收标准
 
 - [x] 四道闸的决策逻辑有单测覆盖（每个闸各一条用例）
-- [x] 通知总线的两条路径有单测覆盖（客户端接走 / 超时兜底 / 客户端中途连上）
-- [x] AppleScript 转义与命令构造有单测覆盖
+- [x] 通知总线的行为有单测覆盖（有客户端订阅时推走 / 没人订阅时丢弃 / 订阅者关闭后不再接）
 - [x] 点横幅切会话的判断有单测覆盖（有会话有服务 / 无会话 / 无服务 / 服务报错）
-- [x] 三门禁全绿：`pnpm test`（51 项）/ `pnpm typecheck` / `pnpm build`
+- [x] 三门禁全绿：`pnpm test`（45 项）/ `pnpm typecheck` / `pnpm build`
 - [x] 装进 desktop profile 并重启实例，`pnpm dsh:probe` 显示本插件 active
 - [x] 真机验证主回合：跑一轮真实对话，日志记 `已通知：kind=completed 用时=5616ms 正文="收到"`，
   正文取到的正是助手那条回复
 - [x] 真机验证子代理回合：子代理会话头带 `origin: "subagent"`（实测 `delegationDepth: 1`），
   插件记 `不通知（subagent）：kind=completed`，父会话照常发通知
-- [x] 真机验证客户端接入：日志出现「客户端已接入通知流」，且**没有**「宿主兜底已发出」
-  → 横幅是客户端弹的，归属是 DSH 本身
+- [x] 真机验证客户端接入：日志出现「客户端已接入通知流」→ 横幅是客户端弹的，归属是
+  DSH 本身
 - [x] 实机验证 `abort` 的回合不弹通知（默认 notifyKinds 不含 aborted）
 - [x] 真机验证点横幅切会话：模拟点击后窗口标题从当前会话（「真人版形象设计进展」）
   切到通知对应的会话（「收到」），客户端控制台记「点横幅 → 切回会话：session-9b7a4c37…」
@@ -174,6 +174,8 @@ A/B 验证过：用改动前的客户端产物（commit `89b2615`）重载，同
       （系统层只能由人确认；脚本只能确认「客户端接走了载荷」「点击后切了会话」
       「系统把横幅呈现了」）
       ⚠ 前提：先在「系统设置 → 通知 → DeepSeek Harness」里放行通知
+- [x] 去掉兜底通道后全仓无残留：产物里搜不到 `osascript` 与兜底端点（`fallback` 只剩
+      zod 内部的 `zod.compile.fallback` 符号），wire 契约只剩通知流一个端点
 
 ## 实测记录
 
@@ -249,3 +251,9 @@ A/B 验证过：用改动前的客户端产物（commit `89b2615`）重载，同
   osascript，不扩 Windows / Linux（DSH Desktop 只发行 macOS 与 Windows）
 - 2026-11-17  jianan  macOS 通知授权放行后系统层复核：同一条通知由 `alertStyle: none`
   变成 `alertStyle: banner`、`present: true`，归属 `com.deepseek.dsh`，横幅确被呈现
+- 2026-11-17  jianan  去掉兜底通道（林老师定：主路行就行，不行就不行）：删 wire 兜底
+  端点、`src/notify.ts` 与 `fallback` / `fallbackDelayMs` / `soundName` / `appName` 四个
+  配置项；没有客户端接入时通知直接丢弃并记一行原因
+- 2026-11-17  jianan  顺手修掉一个构建竞态：client 产物内联的 wire 契约是上一轮的旧
+  产物（两段 tsdown 并行跑）。拆成 `tsdown.host.config.ts` / `tsdown.client.config.ts`，
+  build 脚本按 host → client 顺序跑；清空 lib/ 从零构建验证过

@@ -20,19 +20,3 @@ export interface NotifyPayload {
    */
   sessionId?: string
 }
-
-/** 客户端发不了系统通知时，转交宿主兜底通道的参数。 */
-export interface NotifyFallbackArgs {
-  /** 通知标题。 */
-  title: string
-  /** 通知正文。 */
-  body: string
-  /** 回合结束原因。 */
-  kind: string
-}
-
-/** 兜底通道的结果。 */
-export interface NotifyFallbackResult {
-  /** 是否发出去了。 */
-  posted: boolean
-}

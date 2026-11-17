@@ -64,10 +64,6 @@ pnpm profile:add --remove # 反向卸载（含名单清理）
     title: DSH
     showSummary: true
     summaryMaxChars: 120
-    fallback: osascript
-    fallbackDelayMs: 8000
-    soundName: ''
-    appName: DeepSeek Harness
     notifyOnLoad: false
 ```
 
@@ -80,19 +76,17 @@ pnpm profile:add --remove # 反向卸载（含名单清理）
 | `title` | string | `DSH` | 通知标题 |
 | `showSummary` | boolean | `true` | 正文是否带助手消息摘要 |
 | `summaryMaxChars` | number | `120` | 摘要最大字数 |
-| `fallback` | `'osascript'` \| `'none'` | `'osascript'` | 客户端接不到时宿主自己的兜底通道 |
-| `fallbackDelayMs` | number | `8000` | 兜底延迟：客户端在这段时间内接走就不兜底 |
-| `soundName` | string | `''` | macOS 声音名（`/System/Library/Sounds` 下不含扩展名） |
-| `appName` | string | `DeepSeek Harness` | 通知归属的应用名 |
 | `notifyOnLoad` | boolean | `false` | 装载时先弹一条自检通知 |
 
-### 兜底通道
+### 只有一条路：客户端弹
 
-通知正常由客户端（桌面端 / 浏览器）弹：桌面端的横幅归属是 DSH 本身，点一下能唤起
-DSH Desktop 并切回对应的会话。客户端接不到时（没有客户端、headless、浏览器没给通知
-权限），宿主在 `fallbackDelayMs` 之后用自己的 osascript 通道补一条，那条的归属是
-「脚本编辑器」，点它只会打开脚本编辑器、切不回会话。把 `fallback` 设成 `none` 可以
-彻底不要兜底。
+通知由客户端半边（桌面端渲染进程 / 浏览器）用系统的 Notification API 弹。桌面端的
+横幅归属是 DSH 本身，点一下能唤起 DSH Desktop 并切回对应的会话。
+
+本插件**没有兜底通道**：客户端接不到（没有客户端接入通知流、headless、浏览器没给
+通知权限）时，通知直接丢弃，日志里记一行「无人接收通知（没有客户端接入通知流），已
+丢弃」。这样做的理由是兜底那条的归属只能是别的应用（macOS 的 osascript 归属「脚本
+编辑器」，点它唤起的是脚本编辑器），与其弹一条归属不对的，不如不弹。
 
 ## 已知限制
 
@@ -103,12 +97,11 @@ DSH Desktop 并切回对应的会话。客户端接不到时（没有客户端�
   `hideMainWindow`）。实测窗口隐藏期间通知照发、归属照旧、点它也能切回会话。只有整个
   DSH 退出（⌘Q 或 Windows 托盘退出）之后才没有通知。
 - **浏览器端**：普通浏览器里通知权限默认是不给的（插件不主动弹权限框，避免打断正事），
-  这种情况下走宿主的兜底通道。
+  这种情况下没有通知。
 - **一个任务可能收两条**：派子代理那一轮结束弹一条，子代理跑完、父回合转述结果
   那轮又弹一条。嫌第二条吵就把 `minDurationMs` 调大（例如 30000，转述那种秒回会被
   滤掉）。
-- **Windows 没有内置通道**：客户端那半边依赖浏览器的 Notification API，宿主兜底
-  只实现了 macOS，Windows / Linux 不再补兜底通道（主路能用就用，不能用就算了）。
+- **没有兜底通道**：客户端发不出去时就没有提醒（插件只有一条路，见上面「只有一条路」）。
 - **跨平台现状**：主路（客户端弹通知）本身跨平台，macOS 与 Windows 的 DSH Desktop 都能用，
   代码不用改；差别只在系统侧要不要给应用发通知的授权（macOS 要在「系统设置 → 通知」
   里放行）。Linux 没有 DSH Desktop 发行版，通知还依赖 libnotify/dbus 通知守护进程。
@@ -157,6 +150,7 @@ pnpm verify:notify "你的提示词"     # 自定义
 ```
 2026-11-17T08:02:52 [info] 客户端已接入通知流（通知由客户端弹，归属是 DSH 本身）
 2026-11-17T09:04:24 [info] 已通知：kind=completed 用时=2750ms 会话=session-9b7a4c37… 正文="收到"
+2026-11-17T09:41:02 [info] 无人接收通知（没有客户端接入通知流），已丢弃：kind=completed 会话=session-… 正文="…"
 ```
 
 客户端半边另在浏览器控制台自报两行（排查「点了没反应」时看它）：
@@ -173,12 +167,13 @@ pnpm verify:notify "你的提示词"     # 自定义
 packages/dsh-notify/
   src/index.ts         宿主半边：订阅会话事件 → 决策 → 推通知载荷
   src/turn-watcher.ts  通知决策纯逻辑（四道闸，可单测）
-  src/notify-bus.ts    宿主侧通知总线（推给客户端 / 超时兜底）
-  src/notify.ts        兜底通道：osascript 命令构造与发送
-  src/remote.ts        Typert wire 契约：通知流 + 兜底转交
+  src/notify-bus.ts    宿主侧通知总线（推给客户端；没人订阅就丢弃）
+  src/remote.ts        Typert wire 契约：通知流
   src/contract.ts      wire 契约类型（公开类型子路径 ./types）
   src/client/index.tsx 客户端半边：接通知流 → 弹系统通知 → 点横幅切回会话
   src/client/session-jump.ts  点横幅切会话的纯逻辑（可单测）
+  tsdown.host.config.ts / tsdown.client.config.ts  两段构建（host 段先生成 wire 契约，
+                        client 段再内联它，顺序不能反，见 AGENTS.md 红线）
 packages/protocol/     wire 协议声明源（git 子模块）
 ```
 

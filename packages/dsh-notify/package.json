@@ -37,9 +37,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.types.json",
+    "build": "tsdown --config tsdown.host.config.ts && tsdown --config tsdown.client.config.ts && tsc -p tsconfig.types.json",
     "dev": "tsdown --watch",
-    "prepare": "tsdown && tsc -p tsconfig.types.json && node ../../scripts/sync-pack-docs.mjs"
+    "prepare": "pnpm run build && node ../../scripts/sync-pack-docs.mjs"
   },
   "keywords": [
     "dsh",

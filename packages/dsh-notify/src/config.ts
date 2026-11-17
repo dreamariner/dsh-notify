@@ -24,23 +24,6 @@ export interface NotifyConfig {
   showSummary: boolean
   /** 摘要最大字数，超出截断。 */
   summaryMaxChars: number
-  /**
-   * 宿主兜底通道：客户端（桌面端 / 浏览器）接不到通知时，宿主自己发。
-   *   · osascript：macOS 的 display notification（横幅归属显示「脚本编辑器」）；
-   *   · none：不兜底（没有客户端就彻底不发）。
-   */
-  fallback: 'osascript' | 'none'
-  /** 兜底延迟（毫秒）：客户端在这段时间内接走通知就不兜底。 */
-  fallbackDelayMs: number
-  /** macOS 通知声音名（/System/Library/Sounds 下的文件名，不含扩展名）。空则用系统默认。 */
-  soundName: string
-  /**
-   * 通知归属的应用名。
-   * 当前实现里没有通道消费它（macOS 兜底用 osascript，归属是「脚本编辑器」；
-   * 客户端那条路的归属由系统按应用 bundle 决定），留着是为了将来加 Linux
-   * notify-send 之类按应用名归属的通道时不必改配置面。
-   */
-  appName: string
   /** 插件装载时先弹一条自检通知，确认通知通道通不通。默认关。 */
   notifyOnLoad: boolean
 }
@@ -53,10 +36,6 @@ export const Config: z<NotifyConfig> = z.object({
   title: z.string().default('DSH'),
   showSummary: z.boolean().default(true),
   summaryMaxChars: z.number().default(120),
-  fallback: z.union(['osascript', 'none']).default('osascript'),
-  fallbackDelayMs: z.number().default(8000),
-  soundName: z.string().default(''),
-  appName: z.string().default('DeepSeek Harness'),
   notifyOnLoad: z.boolean().default(false),
 })
 
@@ -69,10 +48,6 @@ export const KNOWN_KEYS = [
   'title',
   'showSummary',
   'summaryMaxChars',
-  'fallback',
-  'fallbackDelayMs',
-  'soundName',
-  'appName',
   'notifyOnLoad',
 ] as const
 

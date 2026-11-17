@@ -13,15 +13,14 @@
 //   · 本类必须在 src/index.ts 里 re-export：生成器从包的 export 图收集符号，
 //     漏 export = 生成器看不见它。
 //
-// 面向客户端的两个端点：
+// 面向客户端的端点：
 //   · notifications（流）：宿主在回合结束时推载荷，客户端拿到就弹系统通知。
 //     桌面端（Electron）发出来的横幅归属是 DSH 本身，点一下由操作系统激活应用，
-//     桌面端的 activate → focusPrimaryWindow 逻辑把窗口拉到前台；
-//   · fallback（一元）：客户端发不了系统通知时（浏览器没给通知权限等），
-//     请宿主用自己的 osascript 通道补一条。
+//     桌面端的 activate → focusPrimaryWindow 逻辑把窗口拉到前台，客户端再切回
+//     载荷里带的那会话。
 
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import type { NotifyFallbackArgs, NotifyFallbackResult, NotifyPayload } from './contract.ts'
+import type { NotifyPayload } from './contract.ts'
 import { subscribeNotifications } from './notify-bus.ts'
 import { getRuntime } from './runtime.ts'
 
@@ -57,30 +56,6 @@ export class NotifyRemote extends TypertRemoteService {
     } finally {
       signal.removeEventListener('abort', onAbort)
       subscriber.close()
-    }
-  }
-
-  /**
-   * 客户端发不了系统通知时，请宿主用兜底通道补一条（macOS 的 osascript）。
-   * @param payload - 要补发的通知载荷。
-   * @param signal - 取消。
-   * @returns 是否发出去了。
-   */
-  @Remote
-  async fallback(
-    args: NotifyFallbackArgs,
-    signal: AbortSignal,
-  ): Promise<NotifyFallbackResult> {
-    signal.throwIfAborted()
-    const runtime = getRuntime()
-    if (runtime === undefined) return { posted: false }
-    try {
-      await runtime.fallback({ title: args.title, body: args.body, kind: args.kind })
-      runtime.log.info(`客户端转交兜底通知：${args.title} · ${args.body}`)
-      return { posted: true }
-    } catch (error: unknown) {
-      runtime.log.warn('兜底通知发送失败：', error instanceof Error ? error.message : String(error))
-      return { posted: false }
     }
   }
 }
