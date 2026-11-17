@@ -4,7 +4,7 @@
 
 ## 项目定位
 
-@dreamariner/dsh-notify：回合（turn）跑完时发一条本机系统通知。DSH 的对话跑完时人不在屏幕前就没有任何信号，macOS 上关掉窗口 DSH 仍在后台跑，这种「活干完了但没人知道」的场景最需要通知。由 create-dsh-plugin 生成的 DeepSeek Harness（DSH）插件，形态：**纯 Node 半边**。
+@dreamariner/dsh-notify：DSH 回合结束系统通知。回合跑完时弹一条系统通知：桌面端的横幅归属是 DSH 本身（点一下唤起 DSH Desktop），客户端接不到时宿主用 osascript 兜底补一条。DeepSeek Harness（DSH）插件，形态：**host + client 双端**。
 
 ## 文档机制
 
@@ -14,26 +14,24 @@
 ## 目录结构
 
 ```
-├── src/                # 源码
-│   ├── index.ts        # 宿主接线：订阅会话事件 → 决策 → 发通知
-│   ├── config.ts       # 配置 schema（schemastery，peer 共享宿主实例）
-│   ├── notify.ts       # 通知通道：平台命令构造、argv 发送、占位符替换
-│   └── turn-watcher.ts # 通知决策纯逻辑（四道闸，可单测）
-├── tests/              # 自守护栏测试（决策单测 / 通道单测 / bundle 形态 / 导入纪律）
-├── scripts/            # 项目共用：profile-add / lib/manifest-deps（host 另有 dev-hmr）
-├── locale/             # 展示元数据（Plugin Manager / Settings 在不激活插件时经 exports 读取）
-├── icon.svg            # 插件图标（透明底铃铛，原创图形）
-├── cordis.patch.yml    # 自挂载 bundle 的配置层
-├── lib/                # 构建产物（不入库）
-└── package.json        # manifest（files / exports / dsh 键）
+├── packages/dsh-notify/     # 插件包（src / tests / locale / icon.svg / cordis.patch.yml）
+├── packages/protocol/          # typert 协议声明源 submodule（pinned vendor，勿改内容）
+├── scripts/                    # 项目共用：profile-add / dev-hmr / sync-pack-docs / lib/manifest-deps
+│                               # （full 另有 ensure-protocol）
+├── lib/                        # 各包构建产物（packages/*/lib/，不入库）
+├── tsconfig.host.json          # host 面聚合 tsconfig（registration + paths 重定向）
+└── package.json                # 根壳 manifest（private；pnpm -r 转发构建）
 ```
 
 ## 形态速记
 
-- 单包布局：根即插件包，npm 发布 / `dsh plugin add` / `profile:add` 都以本仓为单位。
-- host 半边：`src/index.ts`（宿主接线）+ `src/config.ts`（配置 schema）+ `src/notify.ts`
-  （通知通道）+ `src/turn-watcher.ts`（决策纯逻辑），无浏览器面。
-- 本插件不注册 Agent tool：通知是宿主行为，不是模型能力，少一个 Agent 可见面少一类噪音。
+- workspace 布局：根壳承载测试与类型检查，插件包在 `packages/dsh-notify/`；`add` 子命令可继续追加插件，无需迁移结构。
+- 双端：host 半边 `src/index.ts`（订阅会话事件 → 决策 → 推通知载荷）；client 半边 `src/client/index.tsx`（接通知流 → 用系统的 Notification API 弹横幅）。
+- **通知归属与唤起**：归属显示「DeepSeek Harness」、点一下唤起 DSH Desktop，都靠 client 半边在 Electron 渲染进程里发。host 自己用 osascript 发的话归属是「脚本编辑器」，点它唤起的是脚本编辑器。
+- **两路互斥**：client 半边接走载荷就不兜底；没人接（headless、浏览器没给通知权限）时 host 在 `fallbackDelayMs` 后用 osascript 补一条。日志里「客户端已接入通知流」与「宿主兜底已发出」两条能直接分辨走的是哪条。
+- typert face：client → host 的类型化 RPC，方法只声明在 `src/remote.ts`，构建期生成 `lib/typert.host.*`（宿主装配 wire codec）与 `lib/typert.remote-client.*`（client 侧类型化契约）。
+- wire 边界类型必须放在**公开非根类型子路径**（本仓是 `src/contract.ts` 经 `src/types.ts` 发布为 `./types`），否则 typert 生成器直接报「must be exported from a public non-root type subpath」。
+- 协议声明源：`packages/protocol` submodule（pinned vendor，勿在本仓改它的内容）。
 
 ## 常用命令
 
@@ -55,6 +53,8 @@ pnpm dsh:start [前台|后台]   # 启动实例（打包版带 --inspect；启�
 pnpm dsh:restart    # 优雅停止后重启（默认后台；stop/restart 前过在飞守卫）
 pnpm dsh:stop       # 优雅停止（inspector 自动应答退出；兜底属主圈定）
 pnpm dsh:probe      # 连实例验证本插件装载且 active（pluginInventory/list）
+
+pnpm verify:notify  # 真机验收：发一条提示词跑一轮真实对话，读插件日志判定是否发出通知
 ```
 
 ## 红线
@@ -65,5 +65,6 @@ pnpm dsh:probe      # 连实例验证本插件装载且 active（pluginInventory
 - **依赖决策表**：peer = 外置（宿主供给同一实例，运行期共享）；dependencies = 内联自带；devDependencies = 只许 `import type`。唯一事实源是 `package.json`（`scripts/lib/manifest-deps.mjs` 派生 tsdown 三件套），源码导入纪律由 `tests/import-guard.spec.ts` 机械执行。
 - **schemastery 双声明**：peer（与宿主共享实例）+ dev（精确钉本仓 typecheck），缺一会装出两份实例。
 - **cordis 只许 `import type { Context }`**：dev 钉版仅服务 typecheck。值导入前必须先把 cordis 升进 peerDependencies，否则 alwaysBundle 会把它内联进产物，运行期出现第二份 cordis 实例（作用域与注册表不跨副本共享，插件静默失灵；教训源自早期插件仓的实测事故（2026-10-22）），导入护栏会拦。
+- **typert 纪律**：face 方法只声明在 `src/remote.ts`；协议包 devDep 必须裸精确版本（放宽会让 vendor 副本成为合法候选）；zod 必须留在 dependencies（生成产物 import 它）。
 - **实例固定经 `pnpm dsh:start` 启动**：打包版要带 `--inspect` 才有 inspector，Dock 直启的实例 stop / restart 管不了；启动前构建门失败会阻断（lib 不入库，没有旧产物可跑）。
 - **行文不用破折号「——」**（zero 知识库行文规范，2026-11-01 起）。

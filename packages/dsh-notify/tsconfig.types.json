@@ -1,0 +1,15 @@
+{
+  // 公开类型子路径的 d.ts 发射（build 的 tsc 段；tsdown 只出 lib/types.js 的空壳）。
+  // outDir lib/types + rootDir src：src/types.ts 落到 lib/types/types.d.ts，
+  // 与 package.json exports 的 ./types.types 路径对应。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": false,
+    "outDir": "lib/types",
+    "rootDir": "src"
+  },
+  "include": ["src/contract.ts", "src/types.ts"]
+}

@@ -1,6 +1,6 @@
 // @dreamariner/dsh-notify :: Node 半边入口
 //
-// 做什么：DSH 的回合（turn）跑完时，发一条本机系统通知。
+// 做什么：DSH 的回合（turn）跑完时，发一条系统通知。
 // 为什么：对话跑完人是看不见的，只能一直盯屏；关掉窗口后 DSH 仍在后台跑，
 // 通知是唯一能把人叫回来的信号。
 //
@@ -10,23 +10,33 @@
 //   · 子代理会话（session.header.origin === 'subagent'）默认不报，否则一轮里弹好几次；
 //   · 决策逻辑全在 turn-watcher.ts（纯函数），本文件只做宿主接线。
 //
+// 通知往哪走：宿主判定之后把载荷推给客户端（桌面端 / 浏览器），由客户端用系统的
+// Notification API 弹横幅 —— 桌面端这样发出来的横幅归属是 DSH 本身，点一下会
+// 唤起 DSH Desktop。客户端接不到时，宿主在 fallbackDelayMs 之后用自己的
+// osascript 通道补一条（归属是「脚本编辑器」）。
+//
 // ⚠ inject 是白名单：只声明的 service 才会出现在 ctx 上。'sessions' 保证本插件
 //   在会话存储就绪后才激活，不会漏掉启动初期的回合事件。
 
 import type { Context } from '@deepseek-ai/cordis'
 import { Config, KNOWN_KEYS, resolveConfig, type NotifyConfig } from './config.ts'
 import { createLogger } from './logger.ts'
-import { createNotifier, type NotifyPayload } from './notify.ts'
+import { publishNotification } from './notify-bus.ts'
+import { sendDarwinNotification, type NotifyPayload } from './notify.ts'
+import { NotifyRemote } from './remote.ts'
+import { setRuntime } from './runtime.ts'
 import { decideNotification, type SessionFacts } from './turn-watcher.ts'
 
 export const name = 'dsh-notify'
 export const inject = ['sessions']
 export { Config }
+// ⚠ 必须再导出：typert 生成器从包的 export 图收集 Remote 符号，漏 export = 生成器看不见
+export { NotifyRemote }
 
 /** 宿主事件与会话对象的最小形状（只取本插件用到的字段，不依赖宿主类型包）。 */
 interface EventLike {
   type?: string
-  /** Unix epoch milliseconds。 */
+  /** Unix epoch milliseconds. */
   time?: number
   data?: Record<string, unknown>
 }
@@ -92,25 +102,31 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
   const config = resolveConfig(Config, rawConfig ?? {}, name)
   const { info: log, warn } = createLogger(name, ctx)
 
+  // 宿主兜底通道：客户端接不到时自己发（macOS 的 osascript）。
+  const fallback = async (payload: NotifyPayload): Promise<void> => {
+    if (config.fallback === 'none') {
+      log('无人接收通知且兜底已关，丢弃')
+      return
+    }
+    if (process.platform !== 'darwin') {
+      warn('兜底通道只实现了 macOS，当前平台不发：', process.platform)
+      return
+    }
+    await sendDarwinNotification(payload, config.soundName)
+    log(`客户端未接，宿主兜底已发出（归属是「脚本编辑器」）：${payload.title} · ${payload.body}`)
+  }
+
+  setRuntime({ config, log: { info: log, warn }, fallback })
+
   if (!config.enabled) {
     log('通知已关闭（config.enabled = false），插件已装载但不发任何通知')
     return
   }
 
-  const notifier = createNotifier({
-    platform: process.platform,
-    command: config.command,
-    soundName: config.soundName,
-    appName: config.appName,
-  })
+  // Typert Remote（客户端数据通道）：客户端靠它接通知载荷。
+  ctx.plugin(NotifyRemote)
 
   const states = new Map<string, SessionState>()
-
-  const send = (payload: NotifyPayload): void => {
-    void notifier(payload).catch((error: unknown) => {
-      warn('通知发送失败：', error instanceof Error ? error.message : String(error))
-    })
-  }
 
   ctx.on('session/event', (session: SessionLike, event: EventLike) => {
     try {
@@ -141,8 +157,13 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
             log(`不通知（${decision.reason}）：kind=${kind} 用时=${durationMs}ms`)
             break
           }
-          send({ title: decision.title ?? config.title, body: decision.body ?? '' })
-          log(`已通知：kind=${kind} 用时=${durationMs}ms 正文="${decision.body ?? ''}"`)
+          const payload: NotifyPayload = {
+            title: decision.title ?? config.title,
+            body: decision.body ?? '',
+            kind,
+          }
+          publishNotification(payload, (fallbackPayload) => { void fallback(fallbackPayload) }, config.fallbackDelayMs)
+          log(`已通知：kind=${kind} 用时=${durationMs}ms 正文="${payload.body}"`)
           break
         }
 
@@ -163,10 +184,11 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
   })
 
   if (config.notifyOnLoad) {
-    send({
-      title: config.title,
-      body: '通知插件已装载，接下来每轮跑完都会提醒你',
-    })
+    publishNotification(
+      { title: config.title, body: '通知插件已装载，接下来每轮跑完都会提醒你', kind: 'load' },
+      (fallbackPayload) => { void fallback(fallbackPayload) },
+      config.fallbackDelayMs,
+    )
   }
 
   log(`已装载：监听回合结束事件，通知原因码 ${config.notifyKinds.join(' / ')}`)

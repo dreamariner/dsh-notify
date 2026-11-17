@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url'
 const NAME = '@dreamariner/dsh-notify'
 // 本包相对仓根的子路径：single 布局 = ''（根即插件包，build 在根）；workspace =
 // /packages/<id>（--filter 本包含依赖构建，link 指向子目录）
-const SELF_SUFFIX = ''
+const SELF_SUFFIX = '/packages/dsh-notify'
 const PM = 'pnpm@11.7.0'
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')

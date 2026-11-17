@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
 const ROOT = process.cwd()
-const PKG = join(ROOT, '.')
+const PKG = join(ROOT, 'packages/dsh-notify')
 
 // manifest-deps 两布局都在 <仓根>/scripts/lib/（single 的仓根即包根），根 vitest
 // 的 cwd 恒为仓根；相对路径随布局变化写不出静态 import，按 URL 动态引入。

@@ -1,0 +1,4 @@
+[submodule "packages/protocol"]
+	path = packages/protocol
+	url = git@github.com:dreamariner/dsh-typert-protocol.git
+	branch = main

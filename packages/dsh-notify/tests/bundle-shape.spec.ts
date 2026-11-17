@@ -1,18 +1,19 @@
-// @dreamariner/dsh-notify :: bundle 形态自守护栏
+// @dreamariner/dsh-notify :: bundle 形态自守护栏（client / full 变体）
 //
 // 本包是「一包既是 bundle 又是 plugin」的自挂载形态（官方 decoration 模板同款）。
 // 这类包最容易犯的两类错都不报错、只是插件静默消失：
 //   ① 装载断链：cordis.patch.yml 在，但 manifest 漏了 dsh.bundle 声明
 //      → profile 的 bundles 列表里没有它 → 那份 patch 永远不被读 → 插件不加载；
 //   ② 分发缺文件：patch 没进 files 白名单 → npm 包里没有它 → 装完 bundle 是空的。
-// 本护栏把这两类错（外加展示元数据）变成静态可检。
+// 本包还有 client 半边，dsh.client 声明漏了同样静默（浏览器模块不被发现）。
 import { describe, expect, it } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = process.cwd()
-// workspace 布局：本 spec 在根 vitest 下跑（cwd = 仓根），插件包在 packages/<id>/
-const PKG = join(ROOT, '.')
+// full 布局：本 spec 在根 vitest 下跑（cwd = 仓根），插件包在 packages/<id>/；
+// host / client 单包布局时 packages/dsh-notify 为空串（join 忽略空段，即 ROOT 自身）。
+const PKG = join(ROOT, 'packages/dsh-notify')
 const pkg = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8'))
 const NAME = '@dreamariner/dsh-notify'
 const ROW_ID = 'dsh-notify'
@@ -21,6 +22,10 @@ describe('bundle 形态自守', () => {
   it('manifest 声明 dsh.bundle 指向本包 patch（漏声明 = 装载断链，插件静默消失）', () => {
     expect(pkg.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(existsSync(join(PKG, 'cordis.patch.yml'))).toBe(true)
+  })
+
+  it('client 声明在：dsh.client.platform = web（漏了 = 浏览器模块不被发现）', () => {
+    expect(pkg.dsh?.client?.platform).toBe('web')
   })
 
   it('patch 与运行时文件都在 files 白名单里（漏了 = npm 包里没有，装完是空壳）', () => {
