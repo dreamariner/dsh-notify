@@ -44,6 +44,9 @@ export class NotifyRemote extends TypertRemoteService {
    */
   @Remote({ mode: 'stream' })
   async *notifications(signal: AbortSignal): AsyncIterable<NotifyPayload> {
+    // signal 已经中止时 addEventListener('abort') 不会再触发（abort 事件早已派发），
+    // 订阅者会永远留在总线里：publish 恒成功、载荷发进黑洞。先查再订阅。
+    if (signal.aborted) return
     const subscriber = subscribeNotifications()
     const onAbort = (): void => { subscriber.close() }
     signal.addEventListener('abort', onAbort, { once: true })

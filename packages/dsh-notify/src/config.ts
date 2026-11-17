@@ -16,27 +16,24 @@ export interface NotifyConfig {
   notifyKinds: string[]
   /** 子代理会话（session.header.origin === 'subagent'）是否也通知。默认不通知，避免一轮里弹好几次。 */
   includeSubagents: boolean
-  /** 回合最短耗时（毫秒）。低于阈值不通知：秒回的活不值得把人叫起来。 */
+  /** 回合最短耗时（毫秒）。低于阈值不通知：秒回的活不值得把人叫起来。下限 0。 */
   minDurationMs: number
   /** 通知标题。会话标题存在时拼在后面（标题 · 会话名）。 */
   title: string
   /** 正文是否带最后一条助手消息摘要。 */
   showSummary: boolean
-  /** 摘要最大字数，超出截断。 */
+  /** 摘要最大字数，超出截断。下限 1：0 会产出只剩省略号的正文。 */
   summaryMaxChars: number
-  /** 插件装载时先弹一条自检通知，确认通知通道通不通。默认关。 */
-  notifyOnLoad: boolean
 }
 
 export const Config: z<NotifyConfig> = z.object({
   enabled: z.boolean().default(true),
   notifyKinds: z.array(z.string()).default(['completed', 'error']),
   includeSubagents: z.boolean().default(false),
-  minDurationMs: z.number().default(0),
+  minDurationMs: z.number().min(0).default(0),
   title: z.string().default('DSH'),
   showSummary: z.boolean().default(true),
-  summaryMaxChars: z.number().default(120),
-  notifyOnLoad: z.boolean().default(false),
+  summaryMaxChars: z.number().min(1).default(120),
 })
 
 /** 已知键（schemastery 的 Schema 类型不暴露 properties，故显式列出）。 */
@@ -48,7 +45,6 @@ export const KNOWN_KEYS = [
   'title',
   'showSummary',
   'summaryMaxChars',
-  'notifyOnLoad',
 ] as const
 
 /** schemastery 标准校验的同步封装：默认值填充 + 带路径报错；不支持异步校验。 */

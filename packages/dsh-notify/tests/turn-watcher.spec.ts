@@ -134,3 +134,20 @@ describe('摘要处理', () => {
     expect(summarize('   ', 10)).toBe('')
   })
 })
+
+describe('配置范围校验', () => {
+  it('summaryMaxChars 低于 1 时校验失败（0 会产出只剩省略号的正文）', () => {
+    expect(() => resolveConfig(Config, { summaryMaxChars: 0 }, 'test')).toThrow()
+    expect(() => resolveConfig(Config, { summaryMaxChars: -3 }, 'test')).toThrow()
+  })
+
+  it('minDurationMs 为负时校验失败（耗时不可能为负）', () => {
+    expect(() => resolveConfig(Config, { minDurationMs: -1 }, 'test')).toThrow()
+  })
+
+  it('边界值合法：summaryMaxChars=1 与 minDurationMs=0 都能通过', () => {
+    const config = resolveConfig(Config, { summaryMaxChars: 1, minDurationMs: 0 }, 'test')
+    expect(config.summaryMaxChars).toBe(1)
+    expect(config.minDurationMs).toBe(0)
+  })
+})

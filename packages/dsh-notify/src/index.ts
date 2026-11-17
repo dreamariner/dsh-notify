@@ -174,14 +174,6 @@ export function apply(ctx: Context, rawConfig?: Partial<NotifyConfig> | null): v
     if (id !== '') states.delete(id)
   })
 
-  if (config.notifyOnLoad) {
-    publishNotification({
-      title: config.title,
-      body: '通知插件已装载，接下来每轮跑完都会提醒你',
-      kind: 'load',
-    })
-  }
-
   log(`已装载：监听回合结束事件，通知原因码 ${config.notifyKinds.join(' / ')}`)
 }
 

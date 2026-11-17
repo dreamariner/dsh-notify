@@ -62,7 +62,7 @@ function inElectron(): boolean {
  * 弹一条系统通知。
  * @param payload - 通知载荷。
  * @param onClick - 点横幅后的动作（切回触发通知的会话）。
- * @returns 是否真的弹出去了（弹不出去要请宿主兜底）。
+ * @returns 是否真的弹出去了（弹不出去只记 warn：只有一条路，本次没有提醒）。
  */
 function postNotification(payload: NotifyPayload, onClick: (sessionId: string) => void): boolean {
   if (typeof Notification === 'undefined') return false

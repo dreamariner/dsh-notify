@@ -64,7 +64,6 @@ pnpm profile:add --remove # 反向卸载（含名单清理）
     title: DSH
     showSummary: true
     summaryMaxChars: 120
-    notifyOnLoad: false
 ```
 
 | 配置项 | 类型 | 默认 | 说明 |
@@ -75,8 +74,7 @@ pnpm profile:add --remove # 反向卸载（含名单清理）
 | `minDurationMs` | number | `0` | 回合最短耗时（毫秒） |
 | `title` | string | `DSH` | 通知标题 |
 | `showSummary` | boolean | `true` | 正文是否带助手消息摘要 |
-| `summaryMaxChars` | number | `120` | 摘要最大字数 |
-| `notifyOnLoad` | boolean | `false` | 装载时先弹一条自检通知 |
+| `summaryMaxChars` | number | `120` | 摘要最大字数（下限 1） |
 
 ### 只有一条路：客户端弹
 
