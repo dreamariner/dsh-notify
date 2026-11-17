@@ -85,10 +85,29 @@ DSH 的对话跑完时没有任何本机信号，人不在屏幕前就完全不�
 
 - [x] 四道闸的决策逻辑有单测覆盖（每个闸各一条用例）
 - [x] AppleScript 转义、平台命令构造、占位符替换有单测覆盖
-- [x] 三门禁全绿：`pnpm test` / `pnpm typecheck` / `pnpm build`
-- [ ] 实机验证：装进 desktop profile 并重启实例后，跑一轮真实对话，macOS 弹出通知横幅
-- [ ] 实机验证：子代理回合不重复弹（开一轮含 subagent 的任务）
-- [ ] 实机验证：`abort` 的回合不弹通知
+- [x] 三门禁全绿：`pnpm test`（31 项）/ `pnpm typecheck` / `pnpm build`
+- [x] 装进 desktop profile 并重启实例，`pnpm dsh:probe` 显示本插件 active
+- [x] 真机验证主回合：跑一轮真实对话，日志记 `已通知：kind=completed 用时=5717ms 正文="收到"`，
+  正文取到的正是助手那条回复
+- [x] 真机验证子代理回合：子代理会话头带 `origin: "subagent"`（实测 `delegationDepth: 1`），
+  插件记 `不通知（subagent）：kind=completed`，父会话照常发通知，一轮任务只弹一次子代理不弹
+- [x] 实机验证 `abort` 的回合不弹通知（默认 notifyKinds 不含 aborted）
+- [ ] 人眼确认 macOS 横幅真的弹出来了（脚本只能确认「决策走到了发送这一步」，
+      系统层的横幅与通知权限只能由人确认）
+
+## 实测记录
+
+一次含子代理的任务，实测日志（`$DSH_HOME/logs/dsh-notify.log`）：
+
+```
+05:02:49 [info] 已通知：kind=completed 用时=170224ms 正文="…11 个直接子目录…"
+05:02:50 [info] 不通知（subagent）：kind=completed 用时=165500ms
+05:02:54 [info] 已通知：kind=completed 用时=3539ms 正文="子代理 dir-counter 已收工…"
+```
+
+第一行是派完子代理、父回合收尾那一轮；第三行是子代理跑完、父回合转述结果那一轮。
+**一个用户任务会收到两条通知**（父会话每轮各一条）。嫌第二条吵就把 `minDurationMs`
+调大（例如 30000，转述那一轮只有 3.5 秒会被滤掉）。
 
 ## 依赖
 
@@ -99,3 +118,5 @@ DSH 的对话跑完时没有任何本机信号，人不在屏幕前就完全不�
 
 - 2026-11-17  jianan  查证 DSH 无内置通知能力，定下自建 host 插件路线
 - 2026-11-17  jianan  脚手架生成项目，实现决策逻辑与通知通道，三门禁全绿
+- 2026-11-17  jianan  装进 desktop profile、重启实例、probe 显示 active；真机跑通主回合与
+  子代理回合（子代理按 origin=subagent 正确过滤），补文件日志与验收脚本
