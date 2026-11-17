@@ -108,7 +108,10 @@ DSH Desktop 并切回对应的会话。客户端接不到时（没有客户端�
   那轮又弹一条。嫌第二条吵就把 `minDurationMs` 调大（例如 30000，转述那种秒回会被
   滤掉）。
 - **Windows 没有内置通道**：客户端那半边依赖浏览器的 Notification API，宿主兜底
-  只实现了 macOS。
+  只实现了 macOS，Windows / Linux 不再补兜底通道（主路能用就用，不能用就算了）。
+- **跨平台现状**：主路（客户端弹通知）本身跨平台，macOS 与 Windows 的 DSH Desktop 都能用，
+  代码不用改；差别只在系统侧要不要给应用发通知的授权（macOS 要在「系统设置 → 通知」
+  里放行）。Linux 没有 DSH Desktop 发行版，通知还依赖 libnotify/dbus 通知守护进程。
 - **启动时有一条无害告警**：web boot 控制台会出现 `web boot: warning: 1 entry did not
   activate @dreamariner/dsh-notify: import failed`，几十毫秒后插件照常激活
   （控制台随后有「客户端就绪」，宿主日志有「客户端已接入通知流」）。这是宿主启动检查

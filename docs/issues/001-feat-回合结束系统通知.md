@@ -167,8 +167,12 @@ A/B 验证过：用改动前的客户端产物（commit `89b2615`）重载，同
 - [x] 实机验证 `abort` 的回合不弹通知（默认 notifyKinds 不含 aborted）
 - [x] 真机验证点横幅切会话：模拟点击后窗口标题从当前会话（「真人版形象设计进展」）
   切到通知对应的会话（「收到」），客户端控制台记「点横幅 → 切回会话：session-9b7a4c37…」
-- [ ] 人眼确认横幅归属显示「DeepSeek Harness」，且点一下能把 DSH Desktop 唤到前台
-      （系统层只能由人确认；脚本只能确认「客户端接走了载荷」「点击后切了会话」）
+- [x] 系统层验证横幅真的被呈现：macOS 授权放行后，系统日志里同一条通知从
+  `alertStyle: none` 变成 `alertStyle: banner`、`present: true`，列表项归属
+  `com.deepseek.dsh`（即 DeepSeek Harness），且不再出现 `notificationsAllowed: false`
+- [x] 人眼确认横幅归属显示「DeepSeek Harness」，且点一下能把 DSH Desktop 唤到前台
+      （系统层只能由人确认；脚本只能确认「客户端接走了载荷」「点击后切了会话」
+      「系统把横幅呈现了」）
       ⚠ 前提：先在「系统设置 → 通知 → DeepSeek Harness」里放行通知
 
 ## 实测记录
@@ -241,3 +245,7 @@ A/B 验证过：用改动前的客户端产物（commit `89b2615`）重载，同
 - 2026-11-17  jianan  加「点横幅切回该会话」：载荷带 sessionId，client 用
   `uiWorkspace.openSession` 切会话；纯逻辑抽成 session-jump.ts 并补 5 条单测，
   真机模拟点击后窗口标题切到通知对应的会话
+- 2026-11-17  jianan  跨平台口径定案：主路跨平台不动代码，兜底通道只留 macOS 的
+  osascript，不扩 Windows / Linux（DSH Desktop 只发行 macOS 与 Windows）
+- 2026-11-17  jianan  macOS 通知授权放行后系统层复核：同一条通知由 `alertStyle: none`
+  变成 `alertStyle: banner`、`present: true`，归属 `com.deepseek.dsh`，横幅确被呈现

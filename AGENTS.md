@@ -31,6 +31,7 @@
 - **点横幅切回会话**：载荷带 `sessionId`（`src/contract.ts`），client 半边点横幅时用 `ctx.get('uiWorkspace').openSession(sessionId)` 把会话切过去。`uiWorkspace` 是可选服务（动态插件 ctx 的 `ctx.get` 是免声明的可选查找），取不到就只唤起窗口、不切会话；client 装载时会自报一行「客户端就绪：uiWorkspace=可用/不可用」，排查时先看它。
 - **macOS 通知权限是前提**：系统没给 DeepSeek Harness 通知授权时，通知请求会被 macOS 吞掉（横幅不出现，但插件日志照样记「已通知」；系统日志里能看到 `notificationsAllowed: false`）。要在「系统设置 → 通知 → DeepSeek Harness」里允许通知，插件无权代开。
 - **两路互斥**：client 半边接走载荷就不兜底；没人接（headless、浏览器没给通知权限）时 host 在 `fallbackDelayMs` 后用 osascript 补一条。日志里「客户端已接入通知流」与「宿主兜底已发出」两条能直接分辨走的是哪条。
+- **跨平台口径（2026-11-17 定）**：主路（client 半边用 Web Notification API）天然跨平台，不为平台写分支；**兜底通道只保留 macOS 的 osascript，不再扩 Windows / Linux**（林老师定：主路行就行，不行就不行）。DSH Desktop 的发行目标只有 macOS 与 Windows（`apps/desktop/scripts/package-target.ts` 的 `builderPlatform`），Linux 无宿主，Linux 的 Chromium 通知还依赖 libnotify/dbus，所以不值得为它写通道。`fallback` 配置项因此保持 `'osascript' | 'none'` 两个值。
 - typert face：client → host 的类型化 RPC，方法只声明在 `src/remote.ts`，构建期生成 `lib/typert.host.*`（宿主装配 wire codec）与 `lib/typert.remote-client.*`（client 侧类型化契约）。
 - wire 边界类型必须放在**公开非根类型子路径**（本仓是 `src/contract.ts` 经 `src/types.ts` 发布为 `./types`），否则 typert 生成器直接报「must be exported from a public non-root type subpath」。
 - 协议声明源：`packages/protocol` submodule（pinned vendor，勿在本仓改它的内容）。
