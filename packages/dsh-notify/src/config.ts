@@ -34,7 +34,12 @@ export interface NotifyConfig {
   fallbackDelayMs: number
   /** macOS 通知声音名（/System/Library/Sounds 下的文件名，不含扩展名）。空则用系统默认。 */
   soundName: string
-  /** 通知归属的应用名（Linux notify-send 的 --app-name）。 */
+  /**
+   * 通知归属的应用名。
+   * 当前实现里没有通道消费它（macOS 兜底用 osascript，归属是「脚本编辑器」；
+   * 客户端那条路的归属由系统按应用 bundle 决定），留着是为了将来加 Linux
+   * notify-send 之类按应用名归属的通道时不必改配置面。
+   */
   appName: string
   /** 插件装载时先弹一条自检通知，确认通知通道通不通。默认关。 */
   notifyOnLoad: boolean
