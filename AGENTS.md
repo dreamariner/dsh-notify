@@ -34,7 +34,7 @@
 - **macOS 通知权限是前提**：系统没给 DeepSeek Harness 通知授权时，通知请求会被 macOS 吞掉（横幅不出现，但插件日志照样记「已通知」；系统日志里能看到 `notificationsAllowed: false`）。要在「系统设置 → 通知 → DeepSeek Harness」里允许通知，插件无权代开。
 - **跨平台口径（2026-11-17 定）**：主路（client 半边用 Web Notification API）天然跨平台，不为平台写分支。DSH Desktop 的发行目标只有 macOS 与 Windows（`apps/desktop/scripts/package-target.ts` 的 `builderPlatform`），Linux 无宿主，Linux 的 Chromium 通知还依赖 libnotify/dbus，所以不值得为它写通道。
 - typert face：client → host 的类型化 RPC，方法只声明在 `src/remote.ts`，构建期生成 `lib/typert.host.*`（宿主装配 wire codec）与 `lib/typert.remote-client.*`（client 侧类型化契约）。
-- **协议包两半边处理有意不同（2026-11-17 审计定案，逐层核实过 DSH 源码）**：host 半边 peer → 外置（`hostDeps` 的 `neverBundle`），「协议不重复进运行环境」的设计在这里落地：`TypertRemoteService` 基类与宿主 face 装配走宿主同一实例（产物 lib/index.js / typert.host.js 均裸 import，已验证）；client 半边**内联**：渲染进程模块表种子（DSH `packages/client/web/src/platform.ts` 的 `PLATFORM_MODULES`）没有协议包，协议包无 `dsh.client` 声明、不构成 client 模块行，`dsh.client.external` 请求也只能落到种子或别的 client 模块行（`client-modules` 的 `arriveGraphRow`），没有供给方，外置必 miss the module table（client 静默失效）。client 侧挂载按端点字符串与包名（`contribution.package`）校验、无跨副本同一性检查，DSH 自己的构建门（`packages/client/tsdown.client.ts` 的 `INLINE_SAFE` / `GENERATED_REMOTE`）明示这两层「no runtime identity to share」可内联，官方 client 装配（`api/remotes/src/client`）本身就值导入全部 `/remote` 产物内联。脚手架 README「协议包运行期由模块表供给」对 0.2.2-rc.2 不成立，勿照做；完整依据见 `tsdown.shared.ts` 注释。
+- **协议包两半边处理有意不同（2026-11-17 审计定案，逐层核实过 DSH 源码）**：host 半边 peer → 外置（`hostDeps` 的 `neverBundle`），「协议不重复进运行环境」的设计在这里落地：`TypertRemoteService` 基类与宿主 face 装配走宿主同一实例（产物 lib/index.js / typert.host.js 均裸 import，已验证）；client 半边**内联**：渲染进程模块表种子（DSH `packages/client/web/src/platform.ts` 的 `PLATFORM_MODULES`）没有协议包，协议包无 `dsh.client` 声明、不构成 client 模块行，`dsh.client.external` 请求也只能落到种子或别的 client 模块行（`client-modules` 的 `arriveGraphRow`），没有供给方，外置必 miss the module table（client 静默失效）。client 侧挂载按端点字符串与包名（`contribution.package`）校验、无跨副本同一性检查，DSH 自己的构建门（`packages/client/tsdown.client.ts` 的 `INLINE_SAFE` / `GENERATED_REMOTE`）明示这两层「no runtime identity to share」可内联，官方 client 装配（`api/remotes/src/client`）本身就值导入全部 `/remote` 产物内联。脚手架 README「协议包运行期由模块表供给」对 0.2.2-rc.5 不成立，勿照做；完整依据见 `tsdown.shared.ts` 注释。
 - wire 边界类型必须放在**公开非根类型子路径**（本仓是 `src/contract.ts` 经 `src/types.ts` 发布为 `./types`），否则 typert 生成器直接报「must be exported from a public non-root type subpath」。
 - 协议声明源：`packages/protocol` submodule（pinned vendor，勿在本仓改它的内容）。
 
@@ -66,7 +66,7 @@ pnpm verify:notify  # 真机验收：发一条提示词跑一轮真实对话，�
 
 - **lib 不入库**：构建产物不进 git。gitignore 已按布局锚定（single = `/lib/`，workspace = `packages/*/lib/`）；勿改回裸 `lib/`，那会任意深度匹配误伤 `scripts/lib/` 共享模块，clone 出来的仓 build 直接挂。
 - **发布面不含 src**：`files` 白名单与 `exports` 都不带源码；`./src/*` 是官方 client 包的 monorepo 内约定，独立发行插件无人消费。
-- **DSH 版本锚 `0.2.2-rc.2`**：peerDependencies 范围与 `engines.dsh` 都锚在此，升级时同步 `package.json` 与注释。
+- **DSH 版本锚 `0.2.2-rc.5`**：peerDependencies 范围与 `engines.dsh` 都锚在此，升级时同步 `package.json` 与注释。
 - **依赖决策表**：peer = 外置（宿主供给同一实例，运行期共享）；dependencies = 内联自带；devDependencies = 只许 `import type`。唯一事实源是 `package.json`（`scripts/lib/manifest-deps.mjs` 派生 tsdown 三件套），源码导入纪律由 `tests/import-guard.spec.ts` 机械执行。
 - **schemastery 双声明**：peer（与宿主共享实例）+ dev（精确钉本仓 typecheck），缺一会装出两份实例。
 - **cordis 只许 `import type { Context }`**：dev 钉版仅服务 typecheck。值导入前必须先把 cordis 升进 peerDependencies，否则 alwaysBundle 会把它内联进产物，运行期出现第二份 cordis 实例（作用域与注册表不跨副本共享，插件静默失灵；教训源自早期插件仓的实测事故（2026-10-22）），导入护栏会拦。
